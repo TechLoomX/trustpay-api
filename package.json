@@ -1,0 +1,19 @@
+{
+  "name": "trustpay-api",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "indexer"
+  ],
+  "scripts": {
+    "lint": "eslint indexer/src indexer/test",
+    "typecheck": "tsc -p indexer/tsconfig.json --noEmit",
+    "test": "npm run test --workspace=indexer",
+    "test:integration": "npm run test:integration --workspace=indexer"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "typescript-eslint": "^8.3.0"
+  }
+}
