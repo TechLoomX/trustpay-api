@@ -42,6 +42,7 @@ supabase/
   seed.sql            # fixture data for local dev
 indexer/              # standalone Node/TypeScript worker; polls Soroban RPC,
                        # mirrors events into Postgres via the service role key
+scripts/ci/            # CI-only Postgres bootstrap (see "Continuous integration" below)
 ```
 
 ## Setup
@@ -83,6 +84,57 @@ The indexer is the only long-running process this repo needs to operate —
 Supabase does not poll external chains on its own. It resumes from
 `indexer_state.last_processed_ledger` on restart rather than re-scanning from
 genesis.
+
+## Continuous integration
+
+This repo uses npm workspaces at the root (`indexer` is the one workspace)
+so a single `npm ci`/`npm run <script>` at the repo root covers lint,
+typecheck, and tests:
+
+```bash
+npm ci
+npm run lint         # eslint over indexer/src, indexer/test
+npm run typecheck    # tsc --noEmit against indexer/tsconfig.json
+npm test             # unit tests (fake in-memory store, no DB needed)
+npm run test:integration   # needs DATABASE_URL — see below
+```
+
+`.github/workflows/ci.yml` runs three jobs on every PR/push to `main`:
+
+1. **test** — the lint/typecheck/unit-test trio above.
+2. **migrations** — applies every file in `supabase/migrations/` in order
+   against a throwaway `postgres:15` service container, then checks the
+   expected tables exist. This is what catches migration drift (a migration
+   that only works against an already-partially-migrated database).
+3. **integration** — re-applies migrations, then runs `test:integration`:
+   real Postgres tests (not mocks) covering RLS enforcement, the
+   description-hash trigger, and the indexer's event-processing path
+   end-to-end, using `SET LOCAL ROLE` + `request.jwt.claims` the same way
+   PostgREST evaluates a real request.
+
+A bare `postgres:15` container doesn't have the `authenticated`/`anon`/
+`service_role` roles or the `auth.jwt()` function a real Supabase project
+provisions for you — `supabase/migrations/0002_rls_policies.sql` needs both
+to apply at all. `scripts/ci/apply-migrations.sh` bridges that gap by
+running `scripts/ci/00-roles-and-auth-shim.sql` before the real migrations
+and `scripts/ci/99-grants-shim.sql` after. **Those two shim files are
+CI-only** — never run them against a real Supabase project, which already
+has better versions of everything they stand in for; that's also why they
+live outside `supabase/migrations/` where `supabase db push` would never
+pick them up.
+
+To run the same thing locally against a scratch container:
+
+```bash
+docker run -d --name trustpay-ci-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=trustpay_ci -p 5432:5432 postgres:15
+
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/trustpay_ci \
+  ./scripts/ci/apply-migrations.sh
+
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/trustpay_ci \
+  npm run test:integration
+```
 
 ## Known assumptions to confirm against the deployed contract
 
