@@ -384,6 +384,21 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# auth-challenge/auth-verify are the wallet sign-in bootstrap: a caller has
+# no Supabase-issued token yet when it calls them (that's the whole point),
+# so the platform's default verify_jwt=true rejects every legitimate
+# caller with 401 before our own signature-verification code ever runs.
+# The anon key isn't a real secret (it's baked into the public frontend
+# bundle) so requiring it here added no actual security, just a footgun.
+[functions.auth-challenge]
+verify_jwt = false
+
+[functions.auth-verify]
+verify_jwt = false
+
+# reputation is a public aggregate-stats lookup; leaving verify_jwt=true
+# (the default) so it still requires the anon key like a normal Data API call.
+
 [analytics]
 enabled = true
 port = 54327
