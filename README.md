@@ -64,11 +64,21 @@ supabase test db
 supabase functions serve
 ```
 
-Edge Functions need these secrets set (via `supabase secrets set` or
-`.env` for local `functions serve`):
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected into every
+deployed Edge Function by the platform — no need to set them yourself
+(for local `functions serve`, they come from `supabase status` via
+`--env-file`).
 
-- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — from `supabase status`
-- `SUPABASE_JWT_SECRET` — from `supabase status`, used to sign wallet-auth JWTs
+One secret does need to be set explicitly, because the Supabase CLI
+rejects any secret name starting with `SUPABASE_` (reserved for its own
+auto-injected vars):
+
+```bash
+# Value = the project's actual JWT secret, from Dashboard -> Project
+# Settings -> API -> JWT Settings. Only the env var name differs —
+# PostgREST still needs to verify tokens signed with the real secret.
+supabase secrets set WALLET_AUTH_JWT_SECRET=<value>
+```
 
 ### Indexer worker
 
